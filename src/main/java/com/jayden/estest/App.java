@@ -41,18 +41,22 @@ public class App {
         Item item = new Item();
         item.setCategory("手机2");
         item.setCounts(getCounts("2011", 22));
-        String id = "72";
-        System.out.println(client.prepareIndex(INDEX_NAME, TYPE, id)
-                .setSource(JSONObject.parseObject(JSONObject.toJSONString(item), Map.class))
-                .get());
+        String id = "74";
+        for (int i = 0; i < 0; i ++) {
+            id = String.valueOf(Integer.parseInt(id) + 1);
+            System.out.println(client.prepareIndex(INDEX_NAME, TYPE, id)
+                    .setSource(JSONObject.parseObject(JSONObject.toJSONString(item), Map.class))
+                    .get());
 
-        System.out.println(client.prepareUpdate(INDEX_NAME, TYPE, id)
-                .setDoc("image", "/app/deploy 2")
-                .setDoc("pos", "40.12,-71.34")
-                .get());
+//        String nullValue = "image value";
+            String nullValue = null;
+            System.out.println(client.prepareUpdate(INDEX_NAME, TYPE, id)
+                    .setDoc("image", nullValue, "pos", "40.12,-71.34")
+                    .get());
 
-        System.out.println(client.prepareUpdate(INDEX_NAME, TYPE, id)
-                .setDoc("counts", JSONObject.parse(JSONObject.toJSONString(getCounts("2010", 2, "2011", 3)))).get());
+            System.out.println(client.prepareUpdate(INDEX_NAME, TYPE, id)
+                    .setDoc("counts", JSONObject.parse(JSONObject.toJSONString(getCounts("2010", 2, "2011", 3)))).get());
+        }
 
         BoolQueryBuilder monthQueryBuilder = QueryBuilders.boolQuery()
                 .must(QueryBuilders.matchQuery("counts.month", "2010"));
@@ -70,6 +74,8 @@ public class App {
                 .filter(QueryBuilders.geoDistanceQuery("pos").distance(200, DistanceUnit.KILOMETERS).point(40, -70));
         System.out.println(client.prepareSearch(INDEX_NAME).setQuery(distanceQueryBuilder)
                 .addSort(SortBuilders.geoDistanceSort("pos", 40, -70).order(SortOrder.DESC))
+                .addSort(SortBuilders.fieldSort("_uid").order(SortOrder.ASC))
+                .setFrom(0).setSize(5)
                 .get());
 
     }
