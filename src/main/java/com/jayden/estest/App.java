@@ -7,7 +7,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -19,8 +19,6 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * @author Jayden Sun（089245）
@@ -38,42 +36,40 @@ public class App {
                 .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("10.203.202.95"), 9300));
         System.out.println(client);
 
-        indexOps(client);
-
-//        System.out.println(client.prepareIndex(INDEX_NAME, TYPE, "3")
-//                .setSource(jsonBuilder()
-//                        .startObject()
-//                        .field("image", "app/deploy")
-//                        .field("image3", "a")
-//                        .startArray("counts").startObject()
-//                        .field("month", 2010)
-//                        .field("count", 2)
-//                        .endObject().endArray()
-//                        .endObject())
-//                .get());
+//        indexOps(client);
 
         Item item = new Item();
         item.setCategory("手机2");
         item.setCounts(getCounts("2011", 22));
-        System.out.println(client.prepareIndex(INDEX_NAME, TYPE, "7")
-                .setSource((Map) JSONObject.parse(JSONObject.toJSONString(item)), XContentType.JSON)
+        String id = "72";
+        System.out.println(client.prepareIndex(INDEX_NAME, TYPE, id)
+                .setSource(JSONObject.parseObject(JSONObject.toJSONString(item), Map.class))
                 .get());
 
-        System.out.println(client.prepareUpdate(INDEX_NAME, TYPE, "7")
-                .setDoc("image", "/app/deploy 2").get());
+        System.out.println(client.prepareUpdate(INDEX_NAME, TYPE, id)
+                .setDoc("image", "/app/deploy 2")
+                .setDoc("pos", "40.12,-71.34")
+                .get());
 
-        System.out.println(client.prepareUpdate(INDEX_NAME, TYPE, "7")
-                .setDoc("counts", JSONObject.parse(JSONObject.toJSONString(getCounts("2010", 8, "2011", 3)))).get());
+        System.out.println(client.prepareUpdate(INDEX_NAME, TYPE, id)
+                .setDoc("counts", JSONObject.parse(JSONObject.toJSONString(getCounts("2010", 2, "2011", 3)))).get());
 
         BoolQueryBuilder monthQueryBuilder = QueryBuilders.boolQuery()
-                .must(QueryBuilders.matchQuery("counts.month", "2010"))                ;
+                .must(QueryBuilders.matchQuery("counts.month", "2010"));
         Thread.sleep(2000);
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery()
-                .must(QueryBuilders.matchPhraseQuery("category", "手机2"))
+                .must(QueryBuilders.matchQuery("category", "手机2"))
 //                .must(QueryBuilders.matchQuery("price", "3498"))
                 .must(QueryBuilders.nestedQuery("counts", monthQueryBuilder, ScoreMode.None));
         System.out.println(client.prepareSearch(INDEX_NAME).setQuery(boolQueryBuilder)
-                .addSort(SortBuilders.fieldSort("counts.count").order(SortOrder.ASC).setNestedFilter(monthQueryBuilder).setNestedPath("counts"))
+                .addSort(SortBuilders.fieldSort("counts.count").order(SortOrder.DESC).setNestedFilter(monthQueryBuilder).setNestedPath("counts"))
+                .get());
+
+        BoolQueryBuilder distanceQueryBuilder = QueryBuilders.boolQuery()
+                .must(QueryBuilders.matchQuery("category", "手机2"))
+                .filter(QueryBuilders.geoDistanceQuery("pos").distance(200, DistanceUnit.KILOMETERS).point(40, -70));
+        System.out.println(client.prepareSearch(INDEX_NAME).setQuery(distanceQueryBuilder)
+                .addSort(SortBuilders.geoDistanceSort("pos", 40, -70).order(SortOrder.DESC))
                 .get());
 
     }
@@ -84,22 +80,13 @@ public class App {
                 , true, true)).get());
 
         System.out.println(indicesAdminClient.prepareCreate(INDEX_NAME).get());
-        System.out.println(jsonBuilder()
-                .startObject()
-                .field("properties")
-                .startObject()
-                .field("counts")
-                .startObject().field("type", "nested")
-                .endObject()
-                .endObject()
-                .endObject().string());
         System.out.println(indicesAdminClient.preparePutMapping(INDEX_NAME)
                 .setType(TYPE)
                 .setSource(JSONObject.parseObject("{\"dynamic_templates\":[{\"strings_not_analyzed\":{\"mapping\":{\"type\":\"keyword\"},\"match_mapping_type\":\"string\"}}]}", Map.class))
                 .get());
         System.out.println(indicesAdminClient.preparePutMapping(INDEX_NAME)
                 .setType(TYPE)
-                .setSource(JSONObject.parseObject("{\"properties\":{\"counts\":{\"type\":\"nested\"}}}", Map.class))
+                .setSource(JSONObject.parseObject("{\"properties\":{\"counts\":{\"type\":\"nested\"},\"pos\":{\"type\":\"geo_point\"}}}", Map.class))
                 .get());
     }
 
