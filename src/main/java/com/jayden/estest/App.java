@@ -2,6 +2,7 @@ package com.jayden.estest;
 
 import com.alibaba.fastjson.JSONObject;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.transport.TransportClient;
@@ -10,6 +11,8 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
@@ -19,6 +22,7 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * @author Jayden Sun（089245）
@@ -38,11 +42,13 @@ public class App {
 
 //        indexOps(client);
 
+        System.out.println(client.prepareDelete(INDEX_NAME, TYPE, "1").get());
+
         Item item = new Item();
-        item.setCategory("手机2");
+        item.setCategory("深圳中国");
         item.setCounts(getCounts("2011", 22));
-        String id = "74";
-        for (int i = 0; i < 0; i ++) {
+        String id = "374";
+        for (int i = 0; i < 1; i++) {
             id = String.valueOf(Integer.parseInt(id) + 1);
             System.out.println(client.prepareIndex(INDEX_NAME, TYPE, id)
                     .setSource(JSONObject.parseObject(JSONObject.toJSONString(item), Map.class))
@@ -55,7 +61,7 @@ public class App {
                     .get());
 
             System.out.println(client.prepareUpdate(INDEX_NAME, TYPE, id)
-                    .setDoc("counts", JSONObject.parse(JSONObject.toJSONString(getCounts("2010", 2, "2011", 3)))).get());
+                    .setDoc("counts", JSONObject.parse(JSONObject.toJSONString(getCounts("2012", 5, "2013", 6)))).get());
         }
 
         BoolQueryBuilder monthQueryBuilder = QueryBuilders.boolQuery()
@@ -77,6 +83,20 @@ public class App {
                 .addSort(SortBuilders.fieldSort("_uid").order(SortOrder.ASC))
                 .setFrom(0).setSize(5)
                 .get());
+
+        SearchResponse searchResponse = client.prepareSearch(INDEX_NAME).setQuery(QueryBuilders.nestedQuery("counts", QueryBuilders.boolQuery()
+                .must(QueryBuilders.matchQuery("counts.count", 2)), ScoreMode.None))
+                .addAggregation(AggregationBuilders.filter("name1", QueryBuilders.nestedQuery("counts", QueryBuilders.boolQuery()
+                        .must(QueryBuilders.matchQuery("counts.month", "2010")).must(QueryBuilders.matchQuery("counts.count", 0)), ScoreMode.None)))
+                .addAggregation(AggregationBuilders.filter("name3", QueryBuilders.nestedQuery("counts", QueryBuilders.boolQuery()
+                        .must(QueryBuilders.matchQuery("counts.month", "2011")).must(QueryBuilders.matchQuery("counts.count", 3)), ScoreMode.None)))
+                .addAggregation(AggregationBuilders.filter("name5", QueryBuilders.nestedQuery("counts", QueryBuilders.boolQuery()
+                        .must(QueryBuilders.matchQuery("counts.month", "2020")).must(QueryBuilders.matchQuery("counts.count", 3)), ScoreMode.None)))
+                .setFrom(0).setSize(0)
+                .get();
+        System.out.println(searchResponse);
+        System.out.println(searchResponse.getAggregations().getAsMap());
+        System.out.println(searchResponse.getAggregations().asMap().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, x -> ((Filter)x.getValue()).getDocCount())));
 
     }
 
